@@ -1,0 +1,10 @@
+Revision history for Perl extension AnyEvent::Fork::RPC
+
+THE API IS NOT FINISHED, CONSIDER THIS A TECHNOLOGY DEMO
+
+0.1   Thu Apr 18 15:29:48 CEST 2013
+	- first release.
+
+0.00  Tue Apr 16 21:40:55 CEST 2013
+	- post planning, pre writing.
+
