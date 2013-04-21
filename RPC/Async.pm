@@ -38,7 +38,10 @@ sub run {
 
       unless (length $wbuf) {
          undef $ww;
-         exit unless $busy;
+         unless ($busy) {
+            shutdown $master, 1;
+            exit;
+         }
       }
    };
 

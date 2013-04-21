@@ -1,7 +1,7 @@
 NAME
     AnyEvent::Fork::RPC - simple RPC extension for AnyEvent::Fork
 
-    THE API IS NOT FINISHED, CONSIDER THIS A TECHNOLOGY DEMO
+    THE API IS NOT FINISHED, CONSIDER THIS A BETA RELEASE
 
 SYNOPSIS
        use AnyEvent::Fork::RPC;
@@ -599,6 +599,13 @@ ADVANCED TOPICS
     Of course, this might be blocking if you pass a lot of file descriptors,
     so you might want to look into AnyEvent::FDpasser which can handle the
     gory details.
+
+EXCEPTIONS
+    There are no provisions whatsoever for catching exceptions at this time
+    - in the child, exeptions might kill the process, causing calls to be
+    lost and the parent encountering a fatal error. In the parent,
+    exceptions in the result callback will not be caught and cause undefined
+    behaviour.
 
 SEE ALSO
     AnyEvent::Fork, to create the processes in the first place.

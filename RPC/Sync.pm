@@ -52,6 +52,7 @@ sub run {
    }
 
    shutdown $master, 1;
+   exit; # work around broken win32 perls
 }
 
 1

@@ -2,7 +2,7 @@
 
 AnyEvent::Fork::RPC - simple RPC extension for AnyEvent::Fork
 
-THE API IS NOT FINISHED, CONSIDER THIS A TECHNOLOGY DEMO
+THE API IS NOT FINISHED, CONSIDER THIS A BETA RELEASE
 
 =head1 SYNOPSIS
 
@@ -309,7 +309,7 @@ use Guard ();
 use AnyEvent;
 use AnyEvent::Fork; # we don't actually depend on it, this is for convenience
 
-our $VERSION = 0.1;
+our $VERSION = 0.2;
 
 =item my $rpc = AnyEvent::Fork::RPC::run $fork, $function, [key => value...]
 
@@ -552,7 +552,8 @@ sub run {
             if (@rcb || %rcb) {
                $on_error->("unexpected eof");
             } else {
-               $on_destroy->();
+               $on_destroy->()
+                  if $on_destroy;
             }
          } elsif ($! != Errno::EAGAIN && $! != Errno::EWOULDBLOCK) {
             undef $rw; undef $ww; # it ends here
@@ -565,7 +566,8 @@ sub run {
 
    my $guard = Guard::guard {
       $shutdown = 1;
-      $ww ||= $fh && AE::io $fh, 1, $wcb;
+
+      shutdown $fh, 1 if $fh && !$ww;
    };
 
    my $id;
@@ -577,7 +579,7 @@ sub run {
 
            $rcb{$id} = pop;
 
-           $guard; # keep it alive
+           $guard if 0; # keep it alive
 
            $wbuf .= pack "LL/a*", $id, &$f;
            $ww ||= $fh && AE::io $fh, 1, $wcb;
@@ -772,6 +774,13 @@ The MyWorker module could look like this:
 Of course, this might be blocking if you pass a lot of file descriptors,
 so you might want to look into L<AnyEvent::FDpasser> which can handle the
 gory details.
+
+=head1 EXCEPTIONS
+
+There are no provisions whatsoever for catching exceptions at this time -
+in the child, exeptions might kill the process, causing calls to be lost
+and the parent encountering a fatal error. In the parent, exceptions in
+the result callback will not be caught and cause undefined behaviour.
 
 =head1 SEE ALSO
 

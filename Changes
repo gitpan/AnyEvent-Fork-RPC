@@ -1,6 +1,13 @@
 Revision history for Perl extension AnyEvent::Fork::RPC
 
-THE API IS NOT FINISHED, CONSIDER THIS A TECHNOLOGY DEMO
+THE API IS NOT FINISHED, CONSIDER THIS A BETA RELEASE
+
+0.2   Sun Apr 21 14:26:16 CEST 2013
+        - do not create a watcher when shutting down the object, shut down
+          directly, to work around perl global destruction bugs.
+        - expliticly call exit in child server - not elegant, but
+          doesn't disturb any sane perl, and helps broken win32 perls
+          to clean up.
 
 0.1   Thu Apr 18 15:29:48 CEST 2013
 	- first release.
