@@ -11,7 +11,9 @@ sub AnyEvent::Fork::RPC::event;
 
 sub run {
    my ($function, $init, $serialiser) = splice @_, -3, 3,;
-   my $master = shift;
+
+   my $rfh = shift;
+   my $wfh = fileno $rfh ? $rfh : *STDOUT;
 
    {
       package main;
@@ -25,7 +27,7 @@ sub run {
    my ($wbuf, $ww);
 
    my $wcb = sub {
-      my $len = syswrite $master, $wbuf;
+      my $len = syswrite $wfh, $wbuf;
 
       unless (defined $len) {
          if ($! != Errno::EAGAIN && $! != Errno::EWOULDBLOCK) {
@@ -39,7 +41,7 @@ sub run {
       unless (length $wbuf) {
          undef $ww;
          unless ($busy) {
-            shutdown $master, 1;
+            shutdown $wfh, 1;
             exit;
          }
       }
@@ -47,24 +49,24 @@ sub run {
 
    my $write = sub {
       $wbuf .= $_[0];
-      $ww ||= AE::io $master, 1, $wcb;
+      $ww ||= AE::io $wfh, 1, $wcb;
    };
 
    *AnyEvent::Fork::RPC::event = sub {
-      $write->(pack "LL/a*", 0, &$f);
+      $write->(pack "NN/a*", 0, &$f);
    };
 
    my ($rlen, $rbuf, $rw) = 512 - 16;
 
    my $len;
 
-   $rw = AE::io $master, 0, sub {
+   $rw = AE::io $rfh, 0, sub {
       $rlen = $rlen * 2 + 16 if $rlen - 128 < length $rbuf;
-      $len = sysread $master, $rbuf, $rlen - length $rbuf, length $rbuf;
+      $len = sysread $rfh, $rbuf, $rlen - length $rbuf, length $rbuf;
 
       if ($len) {
          while (8 <= length $rbuf) {
-            (my $id, $len) = unpack "LL", $rbuf;
+            (my $id, $len) = unpack "NN", $rbuf;
             8 + $len <= length $rbuf
                or last;
 
@@ -74,13 +76,13 @@ sub run {
             ++$busy;
             $function->(sub {
                --$busy;
-               $write->(pack "LL/a*", $id, &$f);
+               $write->(pack "NN/a*", $id, &$f);
             }, @r);
          }
       } elsif (defined $len) {
          undef $rw;
          --$busy;
-         $ww ||= AE::io $master, 1, $wcb;
+         $ww ||= AE::io $wfh, 1, $wcb;
       } elsif ($! != Errno::EAGAIN && $! != Errno::EWOULDBLOCK) {
          undef $rw;
          die "AnyEvent::Fork::RPC: read error in child: $!\n";

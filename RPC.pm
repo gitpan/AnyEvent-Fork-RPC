@@ -307,9 +307,11 @@ use Errno ();
 use Guard ();
 
 use AnyEvent;
-use AnyEvent::Fork; # we don't actually depend on it, this is for convenience
+# explicit version on next line, as some cpan-testers test with the 0.1 version,
+# ignoring dependencies, and this line will at least give a clear indication of that.
+use AnyEvent::Fork 0.6; # we don't actually depend on it, this is for convenience
 
-our $VERSION = 0.2;
+our $VERSION = 1.1;
 
 =item my $rpc = AnyEvent::Fork::RPC::run $fork, $function, [key => value...]
 
@@ -526,7 +528,7 @@ sub run {
 
          if ($len) {
             while (8 <= length $rbuf) {
-               ($id, $len) = unpack "LL", $rbuf;
+               ($id, $len) = unpack "NN", $rbuf;
                8 + $len <= length $rbuf
                   or last;
 
@@ -581,7 +583,7 @@ sub run {
 
            $guard if 0; # keep it alive
 
-           $wbuf .= pack "LL/a*", $id, &$f;
+           $wbuf .= pack "NN/a*", $id, &$f;
            $ww ||= $fh && AE::io $fh, 1, $wcb;
         }
       : sub {
@@ -589,7 +591,7 @@ sub run {
 
            $guard; # keep it alive
 
-           $wbuf .= pack "L/a*", &$f;
+           $wbuf .= pack "N/a*", &$f;
            $ww ||= $fh && AE::io $fh, 1, $wcb;
         }
 }

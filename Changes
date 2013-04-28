@@ -1,6 +1,9 @@
 Revision history for Perl extension AnyEvent::Fork::RPC
 
-THE API IS NOT FINISHED, CONSIDER THIS A BETA RELEASE
+1.1   Sun Apr 28 15:48:17 CEST 2013
+	- add support for the AnyEvent::Fork::Remote API.
+        - switch to an ABI-independent protocol.
+	- emit clearer diagnostic for some broken cpan-testers setups.
 
 0.2   Sun Apr 21 14:26:16 CEST 2013
         - do not create a watcher when shutting down the object, shut down
