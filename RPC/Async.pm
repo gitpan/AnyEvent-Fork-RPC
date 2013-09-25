@@ -10,10 +10,11 @@ use AnyEvent;
 sub AnyEvent::Fork::RPC::event;
 
 sub run {
-   my ($function, $init, $serialiser) = splice @_, -3, 3,;
-
+   my ($function, $init, $serialiser, $done) = splice @_, -4, 4;
    my $rfh = shift;
    my $wfh = fileno $rfh ? $rfh : *STDOUT;
+
+   $0 =~ s/^AnyEvent::Fork::RPC::Async::run of /$function of /;
 
    {
       package main;
@@ -23,7 +24,7 @@ sub run {
 
    my $busy = 1; # exit when == 0
 
-   my ($f, $t) = eval $serialiser; die $@ if $@;
+   my ($f, $t) = eval $serialiser; AE::log fatal => $@ if $@;
    my ($wbuf, $ww);
 
    my $wcb = sub {
@@ -32,7 +33,7 @@ sub run {
       unless (defined $len) {
          if ($! != Errno::EAGAIN && $! != Errno::EWOULDBLOCK) {
             undef $ww;
-            die "AnyEvent::Fork::RPC: write error ($!), parent gone?\n";
+            AE::log fatal => "AnyEvent::Fork::RPC: write error ($!), parent gone?";
          }
       }
 
@@ -42,7 +43,7 @@ sub run {
          undef $ww;
          unless ($busy) {
             shutdown $wfh, 1;
-            exit;
+            @_ = (); goto &$done;
          }
       }
    };
@@ -79,13 +80,13 @@ sub run {
                $write->(pack "NN/a*", $id, &$f);
             }, @r);
          }
-      } elsif (defined $len) {
+      } elsif (defined $len or $! == Errno::EINVAL) { # EINVAL is for microshit windoze
          undef $rw;
          --$busy;
          $ww ||= AE::io $wfh, 1, $wcb;
       } elsif ($! != Errno::EAGAIN && $! != Errno::EWOULDBLOCK) {
          undef $rw;
-         die "AnyEvent::Fork::RPC: read error in child: $!\n";
+         AE::log fatal => "AnyEvent::Fork::RPC: read error in child: $!";
       }
    };
 

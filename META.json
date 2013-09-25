@@ -4,7 +4,7 @@
       "unknown"
    ],
    "dynamic_config" : 1,
-   "generated_by" : "ExtUtils::MakeMaker version 6.64, CPAN::Meta::Converter version 2.120630",
+   "generated_by" : "ExtUtils::MakeMaker version 6.72, CPAN::Meta::Converter version 2.120630",
    "license" : [
       "unknown"
    ],
@@ -22,6 +22,7 @@
    "prereqs" : {
       "build" : {
          "requires" : {
+            "AnyEvent::Fork" : "0.6",
             "ExtUtils::MakeMaker" : "0"
          }
       },
@@ -33,12 +34,11 @@
       "runtime" : {
          "requires" : {
             "AnyEvent" : "6",
-            "AnyEvent::Fork" : "0.6",
             "Guard" : "1",
             "common::sense" : "3.6"
          }
       }
    },
    "release_status" : "stable",
-   "version" : "1.1"
+   "version" : "1.2"
 }

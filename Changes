@@ -1,5 +1,21 @@
 Revision history for Perl extension AnyEvent::Fork::RPC
 
+1.2   Wed Sep 25 13:05:46 CEST 2013
+	- INCOMPATIBLE CHANGE: remove dependency on, and autoloading
+          of, AnyEvent::Fork.
+	- provide an eof option to specify an alternative to exiting
+          in the asynchronous backend.
+        - add $NSTORABLE_SERIALISER.
+        - use "AE::log die" instead of die to report uncaught errors.
+        - ->run now provides a better $0 (as seen in some ps outputs).
+        - add a nice async Coro RPC server example.
+        - add an example of how to use AnyEvent::Log and on_event to
+          forward log messages to the parent.
+        - work around bugs in the TCP/IP stack on windows, aborting
+          connections instead of properly closing them on exit.
+        - log any errors via AE::log fatal instead of die'ing in the
+          async backend.
+
 1.1   Sun Apr 28 15:48:17 CEST 2013
 	- add support for the AnyEvent::Fork::Remote API.
         - switch to an ABI-independent protocol.

@@ -2,12 +2,10 @@
 
 AnyEvent::Fork::RPC - simple RPC extension for AnyEvent::Fork
 
-THE API IS NOT FINISHED, CONSIDER THIS A BETA RELEASE
-
 =head1 SYNOPSIS
 
+   use AnyEvent::Fork;
    use AnyEvent::Fork::RPC;
-   # use AnyEvent::Fork is not needed
 
    my $rpc = AnyEvent::Fork
       ->new
@@ -30,8 +28,9 @@ THE API IS NOT FINISHED, CONSIDER THIS A BETA RELEASE
 =head1 DESCRIPTION
 
 This module implements a simple RPC protocol and backend for processes
-created via L<AnyEvent::Fork>, allowing you to call a function in the
-child process and receive its return values (up to 4GB serialised).
+created via L<AnyEvent::Fork> or L<AnyEvent::Fork::Remote>, allowing you
+to call a function in the child process and receive its return values (up
+to 4GB serialised).
 
 It implements two different backends: a synchronous one that works like a
 normal function call, and an asynchronous one that can run multiple jobs
@@ -39,9 +38,6 @@ concurrently in the child, using AnyEvent.
 
 It also implements an asynchronous event mechanism from the child to the
 parent, that could be used for progress indications or other information.
-
-Loading this module also always loads L<AnyEvent::Fork>, so you can make a
-separate C<use AnyEvent::Fork> if you wish, but you don't have to.
 
 =head1 EXAMPLES
 
@@ -55,6 +51,7 @@ silly, but illustrates the use of events.
 First the parent process:
 
    use AnyEvent;
+   use AnyEvent::Fork;
    use AnyEvent::Fork::RPC;
 
    my $done = AE::cv;
@@ -63,7 +60,7 @@ First the parent process:
       ->new
       ->require ("MyWorker")
       ->AnyEvent::Fork::RPC::run ("MyWorker::run",
-         on_error   => sub { warn "FATAL: $_[0]"; exit 1 },
+         on_error   => sub { warn "ERROR: $_[0]"; exit 1 },
          on_event   => sub { warn "$_[0] requests handled\n" },
          on_destroy => $done,
       );
@@ -195,6 +192,7 @@ so silly anymore.
 Without further ado, here is the code:
 
    use AnyEvent;
+   use AnyEvent::Fork;
    use AnyEvent::Fork::RPC;
 
    my $done = AE::cv;
@@ -205,7 +203,7 @@ Without further ado, here is the code:
       ->eval (do { local $/; <DATA> })
       ->AnyEvent::Fork::RPC::run ("run",
          async      => 1,
-         on_error   => sub { warn "FATAL: $_[0]"; exit 1 },
+         on_error   => sub { warn "ERROR: $_[0]"; exit 1 },
          on_event   => sub { print $_[0] },
          on_destroy => $done,
       );
@@ -291,6 +289,93 @@ This concludes the async example. Since L<AnyEvent::Fork> does not
 actually fork, you are free to use about any module in the child, not just
 L<AnyEvent>, but also L<IO::AIO>, or L<Tk> for example.
 
+=head2 Example 3: Asynchronous backend with Coro
+
+With L<Coro> you can create a nice asynchronous backend implementation by
+defining an rpc server function that creates a new Coro thread for every
+request that calls a function "normally", i.e. the parameters from the
+parent process are passed to it, and any return values are returned to the
+parent process, e.g.:
+
+   package My::Arith;
+
+   sub add {
+      return $_[0] + $_[1];
+   }
+
+   sub mul {
+      return $_[0] * $_[1];
+   }
+
+   sub run {
+      my ($done, $func, @arg) = @_;
+
+      Coro::async_pool {
+         $done->($func->(@arg));
+      };
+   }
+
+The C<run> function creates a new thread for every invocation, using the
+first argument as function name, and calls the C<$done> callback on it's
+return values. This makes it quite natural to define the C<add> and C<mul>
+functions to add or multiply two numbers and return the result.
+
+Since this is the asynchronous backend, it's quite possible to define RPC
+function that do I/O or wait for external events - their execution will
+overlap as needed.
+
+The above could be used like this:
+
+   my $rpc = AnyEvent::Fork
+      ->new
+      ->require ("MyWorker")
+      ->AnyEvent::Fork::RPC::run ("My::Arith::run",
+         on_error => ..., on_event => ..., on_destroy => ...,
+      );
+
+   $rpc->(add => 1, 3, Coro::rouse_cb); say Coro::rouse_wait;
+   $rpc->(mul => 3, 2, Coro::rouse_cb); say Coro::rouse_wait;
+
+The C<say>'s will print C<4> and C<6>.
+
+=head2 Example 4: Forward AnyEvent::Log messages using C<on_event>
+
+This partial example shows how to use the C<event> function to forward
+L<AnyEvent::Log> messages to the parent.
+
+For this, the parent needs to provide a suitable C<on_event>:
+
+   ->AnyEvent::Fork::RPC::run (
+      on_event => sub {
+         if ($_[0] eq "ae_log") {
+            my (undef, $level, $message) = @_;
+            AE::log $level, $message;
+         } else {
+            # other event types
+         }
+      },
+   )
+
+In the child, as early as possible, the following code should reconfigure
+L<AnyEvent::Log> to log via C<AnyEvent::Fork::RPC::event>:
+
+   $AnyEvent::Log::LOG->log_cb (sub {
+      my ($timestamp, $orig_ctx, $level, $message) = @{+shift};
+
+      if (defined &AnyEvent::Fork::RPC::event) {
+         AnyEvent::Fork::RPC::event (ae_log => $level, $message);
+      } else {
+         warn "[$$ before init] $message\n";
+      }
+   });
+
+There is an important twist - the C<AnyEvent::Fork::RPC::event> function
+is only defined when the child is fully initialised. If you redirect the
+log messages in your C<init> function for example, then the C<event>
+function might not yet be available. This is why the log callback checks
+whether the fucntion is there using C<defined>, and only then uses it to
+log the message.
+
 =head1 PARENT PROCESS USAGE
 
 This module exports nothing, and only implements a single function:
@@ -307,11 +392,8 @@ use Errno ();
 use Guard ();
 
 use AnyEvent;
-# explicit version on next line, as some cpan-testers test with the 0.1 version,
-# ignoring dependencies, and this line will at least give a clear indication of that.
-use AnyEvent::Fork 0.6; # we don't actually depend on it, this is for convenience
 
-our $VERSION = 1.1;
+our $VERSION = 1.2;
 
 =item my $rpc = AnyEvent::Fork::RPC::run $fork, $function, [key => value...]
 
@@ -341,8 +423,8 @@ this callback is not provided, but C<on_event> is, then the C<on_event>
 callback is called with the first argument being the string C<error>,
 followed by the error message.
 
-If neither handler is provided it prints the error to STDERR and will
-start failing badly.
+If neither handler is provided, then the error is reported with loglevel
+C<error> via C<AE::log>.
 
 =item on_event => $cb->(...)
 
@@ -373,6 +455,20 @@ It is called very early - before the serialisers are created or the
 C<$function> name is resolved into a function reference, so it could be
 used to load any modules that provide the serialiser or function. It can
 not, however, create events.
+
+=item done => $function (default C<CORE::exit>)
+
+The function to call when the asynchronous backend detects an end of file
+condition when reading from the communications socket I<and> there are no
+outstanding requests. It's ignored by the synchronous backend.
+
+By overriding this you can prolong the life of a RPC process after e.g.
+the parent has exited by running the event loop in the provided function
+(or simply calling it, for example, when your child process uses L<EV> you
+could provide L<EV::loop> as C<done> function).
+
+Of course, in that case you are responsible for exiting at the appropriate
+time and not returning from
 
 =item async => $boolean (default: 0)
 
@@ -421,7 +517,8 @@ variables that make them easier to use.
 =item octet strings - C<$AnyEvent::Fork::RPC::STRING_SERIALISER>
 
 This serialiser concatenates length-prefixes octet strings, and is the
-default.
+default. That means you can only pass (and return) strings containing
+character codes 0-255.
 
 Implementation:
 
@@ -452,13 +549,29 @@ Implementation:
 
 This serialiser uses L<Storable>, which means it has high chance of
 serialising just about anything you throw at it, at the cost of having
-very high overhead per operation. It also comes with perl.
+very high overhead per operation. It also comes with perl. It should be
+used when you need to serialise complex data structures.
 
 Implementation:
 
    use Storable ();
    (
       sub {    Storable::freeze \@_ },
+      sub { @{ Storable::thaw shift } }
+   )
+
+=item portable storable - C<$AnyEvent::Fork::RPC::NSTORABLE_SERIALISER>
+
+This serialiser also uses L<Storable>, but uses it's "network" format
+to serialise data, which makes it possible to talk to different
+perl binaries (for example, when talking to a process created with
+L<AnyEvent::Fork::Remote>).
+
+Implementation:
+
+   use Storable ();
+   (
+      sub {    Storable::nfreeze \@_ },
       sub { @{ Storable::thaw shift } }
    )
 
@@ -471,9 +584,10 @@ examples.
 
 =cut
 
-our $STRING_SERIALISER   = '(sub { pack "(w/a*)*", @_ }, sub { unpack "(w/a*)*", shift })';
-our $JSON_SERIALISER     = 'use JSON (); (sub { JSON::encode_json \@_ }, sub { @{ JSON::decode_json shift } })';
-our $STORABLE_SERIALISER = 'use Storable (); (sub { Storable::freeze \@_ }, sub { @{ Storable::thaw shift } })';
+our $STRING_SERIALISER    = '(sub { pack "(w/a*)*", @_ }, sub { unpack "(w/a*)*", shift })';
+our $JSON_SERIALISER      = 'use JSON (); (sub { JSON::encode_json \@_ }, sub { @{ JSON::decode_json shift } })';
+our $STORABLE_SERIALISER  = 'use Storable (); (sub { Storable::freeze  \@_ }, sub { @{ Storable::thaw shift } })';
+our $NSTORABLE_SERIALISER = 'use Storable (); (sub { Storable::nfreeze \@_ }, sub { @{ Storable::thaw shift } })';
 
 sub run {
    my ($self, $function, %arg) = @_;
@@ -486,7 +600,7 @@ sub run {
    # default for on_error is to on_event, if specified
    $on_error ||= $on_event
                ? sub { $on_event->(error => shift) }
-               : sub { die "AnyEvent::Fork::RPC: uncaught error: $_[0].\n" };
+               : sub { AE::log die => "AnyEvent::Fork::RPC: uncaught error: $_[0]." };
 
    # default for on_event is to raise an error
    $on_event ||= sub { $on_error->("event received, but no on_event handler") };
@@ -517,7 +631,7 @@ sub run {
    my $module = "AnyEvent::Fork::RPC::" . ($arg{async} ? "Async" : "Sync");
 
    $self->require ($module)
-        ->send_arg ($function, $arg{init}, $serialiser)
+        ->send_arg ($function, $arg{init}, $serialiser, $arg{done} || "CORE::exit")
         ->run ("$module\::run", sub {
       $fh = shift;
 
@@ -643,6 +757,56 @@ examples.
 
 =back
 
+=head2 PROCESS EXIT
+
+If and when the child process exits depends on the backend and
+configuration. Apart from explicit exits (e.g. by calling C<exit>) or
+runtime conditions (uncaught exceptions, signals etc.), the backends exit
+under these conditions:
+
+=over 4
+
+=item Synchronous Backend
+
+The synchronous backend is very simple: when the process waits for another
+request to arrive and the writing side (usually in the parent) is closed,
+it will exit normally, i.e. as if your main program reached the end of the
+file.
+
+That means that if your parent process exits, the RPC process will usually
+exit as well, either because it is idle anyway, or because it executes a
+request. In the latter case, you will likely get an error when the RPc
+process tries to send the results to the parent (because agruably, you
+shouldn't exit your parent while there are still outstanding requests).
+
+The process is usually quiescent when it happens, so it should rarely be a
+problem, and C<END> handlers can be used to clean up.
+
+=item Asynchronous Backend
+
+For the asynchronous backend, things are more complicated: Whenever it
+listens for another request by the parent, it might detect that the socket
+was closed (e.g. because the parent exited). It will sotp listening for
+new requests and instead try to write out any remaining data (if any) or
+simply check whether the socket cna be written to. After this, the RPC
+process is effectively done - no new requests are incoming, no outstanding
+request data can be written back.
+
+Since chances are high that there are event watchers that the RPC server
+knows nothing about (why else would one use the async backend if not for
+the ability to register watchers?), the event loop would often happily
+continue.
+
+This is why the asynchronous backend explicitly calls C<CORE::exit> when
+it is done (under other circumstances, such as when there is an I/O error
+and there is outstanding data to write, it will log a fatal message via
+L<AnyEvent::Log>, also causing the program to exit).
+
+You can override this by specifying a function name to call via the C<done>
+parameter instead.
+
+=back
+
 =head1 ADVANCED TOPICS
 
 =head2 Choosing a backend
@@ -732,6 +896,7 @@ half it has passed earlier.
 Here is some (untested) pseudocode to that effect:
 
    use AnyEvent::Util;
+   use AnyEvent::Fork;
    use AnyEvent::Fork::RPC;
    use IO::FDPass;
 
@@ -787,6 +952,8 @@ the result callback will not be caught and cause undefined behaviour.
 =head1 SEE ALSO
 
 L<AnyEvent::Fork>, to create the processes in the first place.
+
+L<AnyEvent::Fork::Remote>, likewise, but helpful for remote processes.
 
 L<AnyEvent::Fork::Pool>, to manage whole pools of processes.
 

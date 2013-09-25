@@ -10,10 +10,12 @@ WriteMakefile(
 	           },
     NAME => "AnyEvent::Fork::RPC",
     VERSION_FROM => "RPC.pm",
+    TEST_REQUIRES => {
+       AnyEvent::Fork  => 0.6,
+    },
     PREREQ_PM => {
        common::sense   => 3.6,
        AnyEvent        => 6,
-       AnyEvent::Fork  => 0.6, # not _really_ a dependency, but pretty much really one
        Guard           => 1,
     },
 );

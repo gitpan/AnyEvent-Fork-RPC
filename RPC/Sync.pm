@@ -7,9 +7,11 @@ sub AnyEvent::Fork::RPC::event;
 
 # the goal here is to keep this simple, small and efficient
 sub run {
-   my ($function, $init, $serialiser) = splice @_, -3, 3;
+   my ($function, $init, $serialiser, undef) = splice @_, -4, 4;
    my $rfh = shift;
    my $wfh = fileno $rfh ? $rfh : *STDOUT;
+
+   $0 =~ s/^AnyEvent::Fork::RPC::Sync::run of /$function of /;
 
    {
       package main;
