@@ -1,5 +1,9 @@
 Revision history for Perl extension AnyEvent::Fork::RPC
 
+1.21  Tue Oct 15 10:52:09 CEST 2013
+	- work around perl 5.14 and earlier bug causing
+          "Goto undefined subroutine &CORE::exit" messages.
+
 1.2   Wed Sep 25 13:05:46 CEST 2013
 	- INCOMPATIBLE CHANGE: remove dependency on, and autoloading
           of, AnyEvent::Fork.

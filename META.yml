@@ -22,4 +22,4 @@ requires:
   AnyEvent: 6
   Guard: 1
   common::sense: 3.6
-version: 1.2
+version: 1.21

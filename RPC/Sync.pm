@@ -5,6 +5,8 @@ use common::sense; # actually required to avoid spurious warnings...
 # declare only
 sub AnyEvent::Fork::RPC::event;
 
+sub do_exit { exit } # workaround for perl 5.14 and below
+
 # the goal here is to keep this simple, small and efficient
 sub run {
    my ($function, $init, $serialiser, undef) = splice @_, -4, 4;

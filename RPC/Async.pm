@@ -9,6 +9,8 @@ use AnyEvent;
 # declare only
 sub AnyEvent::Fork::RPC::event;
 
+sub do_exit { exit } # workaround for perl 5.14 and below
+
 sub run {
    my ($function, $init, $serialiser, $done) = splice @_, -4, 4;
    my $rfh = shift;

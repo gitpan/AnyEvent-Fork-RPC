@@ -393,7 +393,7 @@ use Guard ();
 
 use AnyEvent;
 
-our $VERSION = 1.2;
+our $VERSION = 1.21;
 
 =item my $rpc = AnyEvent::Fork::RPC::run $fork, $function, [key => value...]
 
@@ -631,7 +631,7 @@ sub run {
    my $module = "AnyEvent::Fork::RPC::" . ($arg{async} ? "Async" : "Sync");
 
    $self->require ($module)
-        ->send_arg ($function, $arg{init}, $serialiser, $arg{done} || "CORE::exit")
+        ->send_arg ($function, $arg{init}, $serialiser, $arg{done} || "$module\::do_exit")
         ->run ("$module\::run", sub {
       $fh = shift;
 
